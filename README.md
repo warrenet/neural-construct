@@ -57,7 +57,7 @@ npm install
 npm start
 ```
 
-Access the terminal at: `http://localhost:5173`
+Access the terminal at: `http://localhost:5173/neural-construct/`
 
 ## 🔐 Security Protocols
 - **Zero-Knowledge Backend**: The proxy server forwards requests but never logs keys or body content.
