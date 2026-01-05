@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import './index.css'
 
 import { ToastProvider, useToast } from './components/Toast'
 import BiosLoader from './components/BiosLoader'
-import KeyVault, { getStoredKey, clearVault } from './components/KeyVault'
+import KeyVault from './components/KeyVault'
+import { getStoredKey, clearVault } from './lib/secureStorage'
 import PersonaChips, { PERSONAS } from './components/PersonaChips'
 import ReasoningToggle from './components/ReasoningToggle'
 import ModelSelector, { getDefaultModelConfig, loadModelConfig, saveModelConfig, ALL_MODELS } from './components/ModelSelector'
@@ -33,6 +34,31 @@ function AppContent() {
   const [vaultLocked, setVaultLocked] = useState(true)
   const [apiKey, setApiKey] = useState(null)
 
+  // Stable completion handler for BiosLoader
+  const handleBootComplete = useCallback(() => setBooting(false), [])
+
+  // Load stored key on mount
+  useEffect(() => {
+    const checkVault = async () => {
+      // If we already have a key, don't continually re-load (prevents toast loops)
+      if (apiKey) return
+
+      const storedKey = await getStoredKey()
+      const envKey = import.meta.env.VITE_OPENROUTER_API_KEY
+
+      if (storedKey) {
+        setApiKey(storedKey)
+        setVaultLocked(false)
+      } else if (envKey) {
+        setApiKey(envKey)
+        setVaultLocked(false)
+        // Only show toast if this is the first load
+        toast.success('Environment Key Loaded')
+      }
+    }
+    checkVault()
+  }, [toast, apiKey])
+
   // Config state
   const [selectedPersona, setSelectedPersona] = useState('vibe_coder')
   const [reasoningMode, setReasoningMode] = useState('sprint')
@@ -52,18 +78,6 @@ function AppContent() {
   const [currentPass, setCurrentPass] = useState(-1)
   const [passResults, setPassResults] = useState([])
   const [responseCount, setResponseCount] = useState(0) // eslint-disable-line
-
-  // Load stored key on mount
-  useEffect(() => {
-    const checkVault = async () => {
-      const storedKey = await getStoredKey()
-      if (storedKey) {
-        setApiKey(storedKey)
-        setVaultLocked(false)
-      }
-    }
-    checkVault()
-  }, [])
 
   // Trigger startup tips after boot
   useEffect(() => {
@@ -90,7 +104,7 @@ function AppContent() {
     setApiKey(null)
     setVaultLocked(true)
     triggerShake()
-    toast.info('Vault Locked')
+    toast.info('Vault Locked (Key Erased)')
   }
 
   const handleClearHistory = () => {
@@ -132,9 +146,15 @@ function AppContent() {
   const handleSubmit = async (e) => {
     e?.preventDefault()
     e?.preventDefault()
-    if (!input.trim() || isStreaming) {
-      triggerError()
+    e?.preventDefault()
+    if (!input.trim()) {
       return
+    }
+
+    if (isStreaming) {
+      console.warn('Attempted to send while streaming. Resetting stream state if necessary.')
+      // Optional: force reset if needed, but for now just warn
+      // to allow "Are you sure?" or just swallow it less aggressively
     }
 
     const userMessage = input.trim()
@@ -301,7 +321,7 @@ function AppContent() {
     })
   }
 
-  if (booting) return <BiosLoader onComplete={() => setBooting(false)} />
+  if (booting) return <BiosLoader onComplete={handleBootComplete} />
   if (vaultLocked) return <><div className="crt-overlay" /><KeyVault onUnlock={handleVaultUnlock} /></>
 
   const advancedMode = ADVANCED_MODES[reasoningMode]
@@ -310,6 +330,7 @@ function AppContent() {
     <>
       <div className={`crt-overlay ${shake ? 'shake-screen' : ''}`} />
       <div className={`flash-overlay ${flash ? 'flash-active flash-' + flash : ''}`} />
+
       <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} />
       {showTemplates && <TemplateSelector onSelect={handleTemplateSelect} onClose={() => setShowTemplates(false)} />}
 
@@ -325,8 +346,8 @@ function AppContent() {
             <div className="flex items-center gap-2">
               <button onClick={() => setShowHelp(true)} className="btn-secondary text-sm" data-tooltip="Help & Guide">❓</button>
               <button onClick={() => setShowTemplates(true)} className="btn-secondary text-sm" data-tooltip="Templates">📋</button>
-              <button onClick={() => setShowSettings(!showSettings)} className="btn-secondary text-sm" data-tooltip="Settings">⚙️</button>
-              <button onClick={handleLockVault} className="text-sm text-gray-500 hover:text-red-400 transition-colors" data-tooltip="Lock Vault">🔒</button>
+              <button onClick={() => setShowSettings(!showSettings)} className="btn-secondary text-sm lg:hidden" data-tooltip="Settings">⚙️</button>
+              <button onClick={handleLockVault} className="text-sm text-gray-500 hover:text-red-400 transition-colors" data-tooltip="Sign Out & Lock">🔒</button>
             </div>
           </div>
         </header>
@@ -348,7 +369,7 @@ function AppContent() {
             <form onSubmit={handleSubmit} className="border-t border-gray-800 p-4">
               <div className="flex gap-3">
                 <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Enter your directive..." disabled={isStreaming} className="flex-1" autoFocus />
-                <button type="submit" disabled={isStreaming || !input.trim()} className="btn-primary px-6">{isStreaming ? '...' : '▶ SEND'}</button>
+                <button type="submit" disabled={!input.trim()} className="btn-primary px-6">{isStreaming ? '...' : '▶ SEND'}</button>
               </div>
               <div className="text-xs text-gray-600 mt-2 text-center">
                 {swarmEnabled ? '🐝 Swarm' : PERSONAS.find(p => p.id === selectedPersona)?.name} • {reasoningMode.toUpperCase()} • <kbd className="kbd">Enter</kbd> to send

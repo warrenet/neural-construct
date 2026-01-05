@@ -2,6 +2,15 @@
 
 /* ========== CRT THEME VARIABLES ========== */
 :root {
+
+  /* Custom Selection Styling */
+  ::selection {
+    background: rgba(0, 212, 255, 0.2);
+    /* Cyan tint */
+    color: #fff;
+    text-shadow: 0 0 5px rgba(0, 212, 255, 0.5);
+  }
+
   --bg-primary: #0a0a0a;
   --bg-secondary: #111111;
   --bg-tertiary: #1a1a1a;
@@ -67,35 +76,41 @@ body {
 
 /* ========== GLITCH TEXT EFFECT ========== */
 @keyframes glitch {
-
-  0%,
-  100% {
+  0% {
     transform: translate(0);
   }
 
   20% {
-    transform: translate(-2px, 2px);
+    transform: translate(-1px, 1px);
   }
 
   40% {
-    transform: translate(-2px, -2px);
+    transform: translate(-1px, -1px);
   }
 
   60% {
-    transform: translate(2px, 2px);
+    transform: translate(1px, 1px);
   }
 
   80% {
-    transform: translate(2px, -2px);
+    transform: translate(1px, -1px);
+  }
+
+  100% {
+    transform: translate(0);
   }
 }
 
 .glitch-text {
+  position: relative;
+}
+
+.glitch-text:hover {
   animation: glitch 0.3s infinite;
 }
 
-.glitch-text::before,
-.glitch-text::after {
+.glitch-text:hover::before,
+.glitch-text:hover::after {
   content: attr(data-text);
   position: absolute;
   top: 0;

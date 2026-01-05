@@ -121,7 +121,7 @@ export default function ReasoningToggle({ selected, onSelect, disabled, showAdva
                             return (
                                 <button
                                     key={mode.id}
-                                    onClick={() => onSelect(mode.id)}
+                                    onClick={() => onSelect(isSelected ? 'sprint' : mode.id)}
                                     disabled={disabled}
                                     className={`
                     py-2 px-1 rounded border transition-all duration-200 text-xs

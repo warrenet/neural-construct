@@ -30,7 +30,10 @@ export default function BiosLoader({ onComplete }) {
             }
         }, 200)
 
-        return () => clearInterval(interval)
+        return () => {
+            clearInterval(interval)
+            // Ensure we don't leave pending timeouts if unmounted early
+        }
     }, [onComplete])
 
     return (

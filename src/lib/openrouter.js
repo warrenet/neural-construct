@@ -1,19 +1,25 @@
-// OpenRouter API client
+const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
 export async function streamChat({ apiKey, model, messages, onChunk, onComplete, onError }) {
     try {
-        const response = await fetch('/api/chat', {
+        const response = await fetch(OPENROUTER_API_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-API-Key': apiKey
+                'Authorization': `Bearer ${apiKey}`,
+                'HTTP-Referer': window.location.origin,
+                'X-Title': 'The Neural Construct'
             },
-            body: JSON.stringify({ model, messages })
+            body: JSON.stringify({
+                model,
+                messages,
+                stream: true
+            })
         })
 
         if (!response.ok) {
-            const error = await response.json()
-            throw new Error(error.error || `HTTP ${response.status}`)
+            const error = await response.json().catch(() => ({ error: { message: `HTTP ${response.status}` } }))
+            throw new Error(error.error?.message || `HTTP ${response.status}`)
         }
 
         const reader = response.body.getReader()
@@ -48,26 +54,37 @@ export async function streamChat({ apiKey, model, messages, onChunk, onComplete,
 
         onComplete(fullResponse)
     } catch (err) {
+        console.error('Stream Error:', err)
         onError(err.message)
     }
 }
 
-// Non-streaming version for MATRIX mode parallel calls
 export async function completeChat({ apiKey, model, messages }) {
-    const response = await fetch('/api/chat/complete', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': apiKey
-        },
-        body: JSON.stringify({ model, messages })
-    })
+    try {
+        const response = await fetch(OPENROUTER_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+                'HTTP-Referer': window.location.origin,
+                'X-Title': 'The Neural Construct'
+            },
+            body: JSON.stringify({
+                model,
+                messages,
+                stream: false
+            })
+        })
 
-    if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || `HTTP ${response.status}`)
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: { message: `HTTP ${response.status}` } }))
+            throw new Error(error.error?.message || `HTTP ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data.choices?.[0]?.message?.content || ''
+    } catch (err) {
+        console.error('Completion Error:', err)
+        throw err
     }
-
-    const data = await response.json()
-    return data.content
 }

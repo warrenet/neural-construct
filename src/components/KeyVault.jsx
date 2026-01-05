@@ -1,20 +1,5 @@
 import { useState } from 'react'
-import { set, get } from 'idb-keyval'
-
-const VAULT_KEY = 'neural-construct-api-key'
-
-// Simple obfuscation (not true encryption, but keeps key out of plain localStorage)
-function obfuscate(key) {
-    return btoa(key.split('').reverse().join(''))
-}
-
-function deobfuscate(data) {
-    try {
-        return atob(data).split('').reverse().join('')
-    } catch {
-        return null
-    }
-}
+import { storeKey } from '../lib/secureStorage'
 
 export default function KeyVault({ onUnlock }) {
     const [apiKey, setApiKey] = useState('')
@@ -37,7 +22,7 @@ export default function KeyVault({ onUnlock }) {
 
         try {
             // Store obfuscated key in IndexedDB
-            await set(VAULT_KEY, obfuscate(apiKey))
+            await storeKey(apiKey)
             onUnlock(apiKey)
         } catch (err) {
             setError('Failed to store key: ' + err.message)
@@ -55,7 +40,7 @@ export default function KeyVault({ onUnlock }) {
                         THE VAULT
                     </h2>
                     <p className="text-gray-500 text-sm mt-2">
-                        Enter your OpenRouter API key to unlock
+                        Enter your OpenRouter API key to unlock session
                     </p>
                 </div>
 
@@ -110,17 +95,4 @@ export default function KeyVault({ onUnlock }) {
     )
 }
 
-// Helper to retrieve stored key
-export async function getStoredKey() {
-    const stored = await get(VAULT_KEY)
-    if (stored) {
-        return deobfuscate(stored)
-    }
-    return null
-}
 
-// Helper to clear stored key
-export async function clearVault() {
-    const { del } = await import('idb-keyval')
-    await del(VAULT_KEY)
-}

@@ -3,7 +3,6 @@ import { get, set } from 'idb-keyval'
 
 // Free models always available
 export const FREE_MODELS = [
-    { id: 'google/gemma-2-9b-it:free', name: 'Gemma 2 9B', provider: 'Google', tier: 'free' },
     { id: 'meta-llama/llama-3.1-8b-instruct:free', name: 'Llama 3.1 8B', provider: 'Meta', tier: 'free' },
     { id: 'mistralai/mistral-7b-instruct:free', name: 'Mistral 7B', provider: 'Mistral', tier: 'free' },
     { id: 'qwen/qwen-2-7b-instruct:free', name: 'Qwen 2 7B', provider: 'Qwen', tier: 'free' },
@@ -59,8 +58,8 @@ export default function ModelSelector({ config, onChange, disabled }) {
                     onClick={() => handleModeChange(true)}
                     disabled={disabled}
                     className={`flex-1 py-2 px-3 rounded text-sm transition-all ${config.useDefault
-                            ? 'bg-cyan-400/20 border border-cyan-400/50 text-cyan-400'
-                            : 'bg-gray-800 border border-gray-700 text-gray-400'
+                        ? 'bg-cyan-400/20 border border-cyan-400/50 text-cyan-400'
+                        : 'bg-gray-800 border border-gray-700 text-gray-400'
                         }`}
                 >
                     Same for All
@@ -69,8 +68,8 @@ export default function ModelSelector({ config, onChange, disabled }) {
                     onClick={() => handleModeChange(false)}
                     disabled={disabled}
                     className={`flex-1 py-2 px-3 rounded text-sm transition-all ${!config.useDefault
-                            ? 'bg-cyan-400/20 border border-cyan-400/50 text-cyan-400'
-                            : 'bg-gray-800 border border-gray-700 text-gray-400'
+                        ? 'bg-cyan-400/20 border border-cyan-400/50 text-cyan-400'
+                        : 'bg-gray-800 border border-gray-700 text-gray-400'
                         }`}
                 >
                     Per Agent
@@ -173,10 +172,40 @@ export function getDefaultModelConfig() {
     }
 }
 
-// Persistence helpers
+// Helper to load config from IDB
 export async function loadModelConfig() {
-    const stored = await get(STORAGE_KEY)
-    return stored || getDefaultModelConfig()
+    try {
+        const stored = await get(STORAGE_KEY)
+        if (stored) {
+            let modified = false
+            const defaultFree = 'meta-llama/llama-3.1-8b-instruct:free'
+            const brokenModel = 'google/gemma-2-9b-it:free'
+
+            // Migration: Check Default
+            if (stored.defaultModel === brokenModel) {
+                stored.defaultModel = defaultFree
+                modified = true
+            }
+
+            // Migration: Check Personas
+            if (stored.personaModels) {
+                for (const [key, value] of Object.entries(stored.personaModels)) {
+                    if (value === brokenModel) {
+                        stored.personaModels[key] = defaultFree
+                        modified = true
+                    }
+                }
+            }
+
+            if (modified) {
+                await set(STORAGE_KEY, stored)
+            }
+            return { ...getDefaultModelConfig(), ...stored }
+        }
+    } catch (err) {
+        console.error('Failed to load model config:', err)
+    }
+    return getDefaultModelConfig()
 }
 
 export async function saveModelConfig(config) {
