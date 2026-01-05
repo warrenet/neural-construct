@@ -15,6 +15,8 @@ import HelpModal from './components/HelpModal'
 import TemplateSelector from './components/TemplateSelector'
 import Footer from './components/Footer'
 import { applyTemplate } from './lib/templates'
+import './components/Haptics.css'
+import { useHaptics } from './hooks/useHaptics'
 import { useNeuralState, useSession } from './hooks/useNeuralState'
 import { useOnboarding, TOAST_MESSAGES } from './hooks/useOnboarding'
 import { enhancePrompt, createSynthesisPrompt } from './lib/passZero'
@@ -24,6 +26,7 @@ import { ADVANCED_MODES, SWARM_PROMPTS, getAdvancedModePrompt } from './lib/adva
 function AppContent() {
   const { toast } = useToast()
   const onboarding = useOnboarding(toast)
+  const { shake, flash, triggerShake, triggerFlash, triggerError, triggerSuccess } = useHaptics()
 
   // Boot state
   const [booting, setBooting] = useState(true)
@@ -66,8 +69,10 @@ function AppContent() {
   useEffect(() => {
     if (!booting && !vaultLocked) {
       onboarding.triggerTips('startup')
+      // Trigger subtle flash on boot
+      triggerFlash('cyan')
     }
-  }, [booting, vaultLocked, onboarding])
+  }, [booting, vaultLocked, onboarding, triggerFlash])
 
   // Load/save model config
   useEffect(() => { loadModelConfig().then(setModelConfig) }, [])
@@ -77,12 +82,15 @@ function AppContent() {
     setApiKey(key)
     setVaultLocked(false)
     toast.success(TOAST_MESSAGES.keySaved)
+    triggerSuccess()
   }
 
   const handleLockVault = async () => {
     await clearVault()
     setApiKey(null)
     setVaultLocked(true)
+    triggerShake()
+    toast.info('Vault Locked')
   }
 
   const handleClearHistory = () => {
@@ -123,7 +131,11 @@ function AppContent() {
 
   const handleSubmit = async (e) => {
     e?.preventDefault()
-    if (!input.trim() || isStreaming) return
+    e?.preventDefault()
+    if (!input.trim() || isStreaming) {
+      triggerError()
+      return
+    }
 
     const userMessage = input.trim()
     setInput('')
@@ -165,7 +177,9 @@ function AppContent() {
         addMessage({ role: 'system', content: `Error: ${error}` })
         setCurrentStream(null)
         setStreamError(error)
+        setStreamError(error)
         toast.error(TOAST_MESSAGES.apiError)
+        triggerError()
       }
     })
   }
@@ -294,7 +308,8 @@ function AppContent() {
 
   return (
     <>
-      <div className="crt-overlay" />
+      <div className={`crt-overlay ${shake ? 'shake-screen' : ''}`} />
+      <div className={`flash-overlay ${flash ? 'flash-active flash-' + flash : ''}`} />
       <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} />
       {showTemplates && <TemplateSelector onSelect={handleTemplateSelect} onClose={() => setShowTemplates(false)} />}
 
