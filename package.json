@@ -4,8 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "start": "vite",
+    "dev": "concurrently --names \"API,WEB\" --prefix-colors \"yellow,cyan\" \"npm run server\" \"vite\"",
+    "start": "concurrently --names \"API,WEB\" --prefix-colors \"yellow,cyan\" \"npm run server\" \"vite\"",
+    "server": "node server/index.js",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"

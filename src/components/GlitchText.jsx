@@ -1,18 +1,24 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 export default function GlitchText({ text, active = true, className = '' }) {
-    const [glitching, setGlitching] = useState(active)
+    const [glitching, setGlitching] = useState(false)
+    const activeRef = useRef(active)
+
+    useEffect(() => {
+        activeRef.current = active
+    }, [active])
 
     useEffect(() => {
         if (!active) {
-            setGlitching(false)
             return
         }
 
         // Random glitch bursts
         const interval = setInterval(() => {
-            setGlitching(true)
-            setTimeout(() => setGlitching(false), 150)
+            if (activeRef.current) {
+                setGlitching(true)
+                setTimeout(() => setGlitching(false), 150)
+            }
         }, 2000 + Math.random() * 3000)
 
         return () => clearInterval(interval)

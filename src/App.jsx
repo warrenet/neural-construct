@@ -145,8 +145,6 @@ function AppContent() {
 
   const handleSubmit = async (e) => {
     e?.preventDefault()
-    e?.preventDefault()
-    e?.preventDefault()
     if (!input.trim()) {
       return
     }
@@ -196,7 +194,6 @@ function AppContent() {
       onError: (error) => {
         addMessage({ role: 'system', content: `Error: ${error}` })
         setCurrentStream(null)
-        setStreamError(error)
         setStreamError(error)
         toast.error(TOAST_MESSAGES.apiError)
         triggerError()
@@ -369,7 +366,7 @@ function AppContent() {
             <form onSubmit={handleSubmit} className="border-t border-gray-800 p-4">
               <div className="flex gap-3">
                 <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Enter your directive..." disabled={isStreaming} className="flex-1" autoFocus />
-                <button type="submit" disabled={!input.trim()} className="btn-primary px-6">{isStreaming ? '...' : '▶ SEND'}</button>
+                <button type="submit" disabled={isStreaming || !input.trim()} className="btn-primary px-6">{isStreaming ? '...' : '▶ SEND'}</button>
               </div>
               <div className="text-xs text-gray-600 mt-2 text-center">
                 {swarmEnabled ? '🐝 Swarm' : PERSONAS.find(p => p.id === selectedPersona)?.name} • {reasoningMode.toUpperCase()} • <kbd className="kbd">Enter</kbd> to send
