@@ -2,7 +2,7 @@
     "name": "The Neural Construct",
     "short_name": "Construct",
     "description": "Tactical PWA for Multi-Pass Agentic Workflows",
-    "start_url": "/neural-construct/",
+    "start_url": "/",
     "display": "standalone",
     "background_color": "#0a0a0a",
     "theme_color": "#00d4ff",

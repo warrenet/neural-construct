@@ -1,34 +1,12 @@
-import { useState, useEffect } from 'react'
-import { get, set } from 'idb-keyval'
-
-// Free models always available
-export const FREE_MODELS = [
-    { id: 'meta-llama/llama-3.1-8b-instruct:free', name: 'Llama 3.1 8B', provider: 'Meta', tier: 'free' },
-    { id: 'mistralai/mistral-7b-instruct:free', name: 'Mistral 7B', provider: 'Mistral', tier: 'free' },
-    { id: 'qwen/qwen-2-7b-instruct:free', name: 'Qwen 2 7B', provider: 'Qwen', tier: 'free' },
-    { id: 'nousresearch/hermes-3-llama-3.1-405b:free', name: 'Hermes 3 405B', provider: 'Nous', tier: 'free' }
-]
-
-// Curated paid tiers
-export const PAID_MODELS = [
-    { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'Anthropic', tier: 'top', cost: '~$3/1M' },
-    { id: 'google/gemini-flash-1.5', name: 'Gemini Flash 1.5', provider: 'Google', tier: 'budget', cost: '~$0.07/1M' },
-    { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', tier: 'mid', cost: '~$0.15/1M' }
-]
-
-export const ALL_MODELS = [...FREE_MODELS, ...PAID_MODELS]
-
-const TIER_LABELS = {
-    free: { label: '🆓 FREE', color: 'text-green-400' },
-    top: { label: '💎 TOP', color: 'text-purple-400' },
-    mid: { label: '⚖️ MID', color: 'text-blue-400' },
-    budget: { label: '💰 BUDGET', color: 'text-yellow-400' }
-}
-
-const STORAGE_KEY = 'neural-construct-model-config'
+/**
+ * ModelSelector - UI component for selecting AI models
+ * Model definitions and persistence are in src/lib/models.js and src/lib/modelConfig.js
+ */
+import { useState } from 'react'
+import { FREE_MODELS, PAID_MODELS, TIER_LABELS } from '../lib/models'
 
 export default function ModelSelector({ config, onChange, disabled }) {
-    const [showCustomize, setShowCustomize] = useState(!config.useDefault)
+    const [_showCustomize, setShowCustomize] = useState(!config.useDefault)
 
     const handleModeChange = (useDefault) => {
         setShowCustomize(!useDefault)
@@ -157,57 +135,4 @@ function ModelDropdown({ value, onChange, disabled }) {
             </optgroup>
         </select>
     )
-}
-
-// Default configuration
-export function getDefaultModelConfig() {
-    return {
-        useDefault: true,
-        defaultModel: FREE_MODELS[0].id,
-        personaModels: {
-            architect: FREE_MODELS[0].id,
-            vibe_coder: FREE_MODELS[0].id,
-            strategist: FREE_MODELS[0].id
-        }
-    }
-}
-
-// Helper to load config from IDB
-export async function loadModelConfig() {
-    try {
-        const stored = await get(STORAGE_KEY)
-        if (stored) {
-            let modified = false
-            const defaultFree = 'meta-llama/llama-3.1-8b-instruct:free'
-            const brokenModel = 'google/gemma-2-9b-it:free'
-
-            // Migration: Check Default
-            if (stored.defaultModel === brokenModel) {
-                stored.defaultModel = defaultFree
-                modified = true
-            }
-
-            // Migration: Check Personas
-            if (stored.personaModels) {
-                for (const [key, value] of Object.entries(stored.personaModels)) {
-                    if (value === brokenModel) {
-                        stored.personaModels[key] = defaultFree
-                        modified = true
-                    }
-                }
-            }
-
-            if (modified) {
-                await set(STORAGE_KEY, stored)
-            }
-            return { ...getDefaultModelConfig(), ...stored }
-        }
-    } catch (err) {
-        console.error('Failed to load model config:', err)
-    }
-    return getDefaultModelConfig()
-}
-
-export async function saveModelConfig(config) {
-    await set(STORAGE_KEY, config)
 }

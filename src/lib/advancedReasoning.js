@@ -150,13 +150,26 @@ Then provide your response.`
 }
 
 // Swarm coordination prompts
+// Swarm coordination prompts with structured handoff
 export const SWARM_PROMPTS = {
     architect: (userRequest) => `You are first in a swarm (ARCHITECTURE role).
 
 REQUEST: ${userRequest}
 
-Provide: 1) High-level design 2) Component breakdown 3) Data flow (Mermaid) 4) Interface definitions
-Next agent (Vibe Coder) will implement based on your design.`,
+Provide:
+1. High-level design & System Architecture
+2. Component breakdown
+3. Data flow (Mermaid)
+4. Interface definitions
+
+IMPORTANT: End your response with a "HANDOFF SUMMARY" block for the next agent:
+---
+HANDOFF SUMMARY:
+- Core Goal: [1 sentence]
+- Key Components: [List]
+- Tech Stack: [List]
+- Critical Constraints: [List]
+---`,
 
     vibe_coder: (userRequest, architectResponse) => `You are second in a swarm (IMPLEMENTATION role).
 
@@ -165,8 +178,20 @@ REQUEST: ${userRequest}
 ARCHITECT'S DESIGN:
 ${architectResponse}
 
-Implement based on the design: production-ready code, follow interfaces, error handling, documentation.
-Next agent (Strategist) will review your code.`,
+Implement based on the design:
+1. Review the HANDOFF SUMMARY above
+2. Write production-ready code for the components
+3. Ensure interfaces match definitions
+4. Add comprehensive error handling
+
+IMPORTANT: End your response with a "IMPLEMENTATION SUMMARY" block:
+---
+IMPLEMENTATION SUMMARY:
+- Files Created/Modified: [List]
+- External Dependencies: [List]
+- Key Functions: [List]
+- Potential Risks: [List]
+---`,
 
     strategist: (userRequest, architectResponse, coderResponse) => `You are third in a swarm (SECURITY & REVIEW role).
 
@@ -178,6 +203,11 @@ ${architectResponse}
 IMPLEMENTATION:
 ${coderResponse}
 
-Review for: security vulnerabilities, logic errors, performance issues, code quality, edge cases.
-Provide specific fixes for all issues.`
+Review process:
+1. Analyze the HANDOFF SUMMARY and IMPLEMENTATION SUMMARY
+2. Security audit (vulnerabilities, injection, auth)
+3. Code quality check (performance, readability, best practices)
+4. Edge case analysis
+
+Provide specific fixes for any issues found and certify if production-ready.`
 }

@@ -1,13 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import './index.css'
 
-import { ToastProvider, useToast } from './components/Toast'
+import { ToastProvider } from './components/Toast'
+import { useToast } from './hooks/useToast'
 import BiosLoader from './components/BiosLoader'
 import KeyVault from './components/KeyVault'
 import { getStoredKey, clearVault } from './lib/secureStorage'
 import PersonaChips, { PERSONAS } from './components/PersonaChips'
 import ReasoningToggle from './components/ReasoningToggle'
-import ModelSelector, { getDefaultModelConfig, loadModelConfig, saveModelConfig, ALL_MODELS } from './components/ModelSelector'
+import ModelSelector from './components/ModelSelector'
+import { ALL_MODELS, getDefaultModelConfig } from './lib/models'
+import { loadModelConfig, saveModelConfig } from './lib/modelConfig'
 import ChatStream from './components/ChatStream'
 import SwarmToggle from './components/SwarmToggle'
 import StatusBar from './components/StatusBar'
@@ -15,6 +18,8 @@ import PassProgress from './components/PassProgress'
 import HelpModal from './components/HelpModal'
 import TemplateSelector from './components/TemplateSelector'
 import Footer from './components/Footer'
+import FirstRunWizard from './components/FirstRunWizard'
+import QuickTips from './components/QuickTips'
 import { applyTemplate } from './lib/templates'
 import './components/Haptics.css'
 import { useHaptics } from './hooks/useHaptics'
@@ -23,6 +28,8 @@ import { useOnboarding, TOAST_MESSAGES } from './hooks/useOnboarding'
 import { enhancePrompt, createSynthesisPrompt } from './lib/passZero'
 import { streamChat, completeChat } from './lib/openrouter'
 import { ADVANCED_MODES, SWARM_PROMPTS, getAdvancedModePrompt } from './lib/advancedReasoning'
+import PromptEnhancer from './components/PromptEnhancer'
+import BestPracticesPanel from './components/BestPracticesPanel'
 
 function AppContent() {
   const { toast } = useToast()
@@ -67,6 +74,7 @@ function AppContent() {
   const [swarmEnabled, setSwarmEnabled] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
+  const [showEnhancer, setShowEnhancer] = useState(false)
 
   // Chat state
   const { history, addMessage, clearHistory } = useNeuralState()
@@ -77,7 +85,7 @@ function AppContent() {
   const [tokensUsed, setTokensUsed] = useState(0)
   const [currentPass, setCurrentPass] = useState(-1)
   const [passResults, setPassResults] = useState([])
-  const [responseCount, setResponseCount] = useState(0) // eslint-disable-line
+  const [_responseCount, setResponseCount] = useState(0)
 
   // Trigger startup tips after boot
   useEffect(() => {
@@ -205,32 +213,35 @@ function AppContent() {
     startStream()
     const responses = { architect: '', vibe_coder: '', strategist: '' }
 
-    setCurrentStream({ persona: 'The Architect', content: '', phase: 'Swarm 1/3' })
     try {
-      responses.architect = await completeChat({ apiKey, model, messages: [{ role: 'user', content: SWARM_PROMPTS.architect(userMessage) }] })
-      setCurrentStream(prev => ({ ...prev, content: responses.architect }))
-    } catch (err) { setStreamError(err.message); toast.error(TOAST_MESSAGES.apiError); return }
+      setCurrentStream({ persona: 'The Architect', content: '', phase: 'Swarm 1/3' })
+      try {
+        responses.architect = await completeChat({ apiKey, model, messages: [{ role: 'user', content: SWARM_PROMPTS.architect(userMessage) }] })
+        setCurrentStream(prev => ({ ...prev, content: responses.architect }))
+      } catch (err) { setStreamError(err.message); toast.error(TOAST_MESSAGES.apiError); return }
 
-    setCurrentStream({ persona: 'The Vibe Coder', content: '', phase: 'Swarm 2/3' })
-    try {
-      responses.vibe_coder = await completeChat({ apiKey, model, messages: [{ role: 'user', content: SWARM_PROMPTS.vibe_coder(userMessage, responses.architect) }] })
-      setCurrentStream(prev => ({ ...prev, content: responses.vibe_coder }))
-    } catch (err) { setStreamError(err.message); toast.error(TOAST_MESSAGES.apiError); return }
+      setCurrentStream({ persona: 'The Vibe Coder', content: '', phase: 'Swarm 2/3' })
+      try {
+        responses.vibe_coder = await completeChat({ apiKey, model, messages: [{ role: 'user', content: SWARM_PROMPTS.vibe_coder(userMessage, responses.architect) }] })
+        setCurrentStream(prev => ({ ...prev, content: responses.vibe_coder }))
+      } catch (err) { setStreamError(err.message); toast.error(TOAST_MESSAGES.apiError); return }
 
-    setCurrentStream({ persona: 'Based Strategist', content: '', phase: 'Swarm 3/3' })
-    try {
-      responses.strategist = await completeChat({ apiKey, model, messages: [{ role: 'user', content: SWARM_PROMPTS.strategist(userMessage, responses.architect, responses.vibe_coder) }] })
-    } catch (err) { setStreamError(err.message); toast.error(TOAST_MESSAGES.apiError); return }
+      setCurrentStream({ persona: 'Based Strategist', content: '', phase: 'Swarm 3/3' })
+      try {
+        responses.strategist = await completeChat({ apiKey, model, messages: [{ role: 'user', content: SWARM_PROMPTS.strategist(userMessage, responses.architect, responses.vibe_coder) }] })
+      } catch (err) { setStreamError(err.message); toast.error(TOAST_MESSAGES.apiError); return }
 
-    addMessage({
-      role: 'assistant',
-      content: `## 🐝 Swarm Complete\n\n### 🏛️ Architect\n${responses.architect}\n\n---\n\n### ⚡ Vibe Coder\n${responses.vibe_coder}\n\n---\n\n### 🎯 Strategist\n${responses.strategist}`,
-      persona: 'swarm', model, mode: 'swarm'
-    })
-    setCurrentStream(null)
-    endStream()
-    toast.success(TOAST_MESSAGES.swarmComplete)
-    handleResponseComplete()
+      addMessage({
+        role: 'assistant',
+        content: `## 🐝 Swarm Complete\n\n### 🏛️ Architect\n${responses.architect}\n\n---\n\n### ⚡ Vibe Coder\n${responses.vibe_coder}\n\n---\n\n### 🎯 Strategist\n${responses.strategist}`,
+        persona: 'swarm', model, mode: 'swarm'
+      })
+      toast.success(TOAST_MESSAGES.swarmComplete)
+      handleResponseComplete()
+    } finally {
+      setCurrentStream(null)
+      endStream()
+    }
   }
 
   const handleAdvancedMode = async (userMessage, modeId, model) => {
@@ -241,29 +252,32 @@ function AppContent() {
     setPassResults([])
     const results = []
 
-    for (let i = 0; i < mode.passes.length; i++) {
-      setCurrentPass(i)
-      const passConfig = getAdvancedModePrompt(modeId, i, results)
-      setCurrentStream({ persona: passConfig.name, content: '', phase: `Pass ${i + 1}/${mode.passes.length}` })
+    try {
+      for (let i = 0; i < mode.passes.length; i++) {
+        setCurrentPass(i)
+        const passConfig = getAdvancedModePrompt(modeId, i, results)
+        setCurrentStream({ persona: passConfig.name, content: '', phase: `Pass ${i + 1}/${mode.passes.length}` })
 
-      try {
-        const result = await completeChat({
-          apiKey, model,
-          messages: [{ role: 'system', content: passConfig.systemPrompt }, { role: 'user', content: userMessage + passConfig.context }]
-        })
-        results.push(result)
-        setPassResults([...results])
-        setCurrentStream(prev => ({ ...prev, content: result }))
-      } catch (err) { setStreamError(err.message); toast.error(TOAST_MESSAGES.apiError); return }
+        try {
+          const result = await completeChat({
+            apiKey, model,
+            messages: [{ role: 'system', content: passConfig.systemPrompt }, { role: 'user', content: userMessage + passConfig.context }]
+          })
+          results.push(result)
+          setPassResults([...results])
+          setCurrentStream(prev => ({ ...prev, content: result }))
+        } catch (err) { setStreamError(err.message); toast.error(TOAST_MESSAGES.apiError); return }
+      }
+
+      const formattedResponse = results.map((r, i) => `### ${mode.passes[i].name}\n${r}`).join('\n\n---\n\n')
+      addMessage({ role: 'assistant', content: `## ${mode.icon} ${mode.name} Complete\n\n${formattedResponse}`, persona: modeId, model, mode: modeId })
+      toast.success(TOAST_MESSAGES[`${modeId}Complete`] || TOAST_MESSAGES.analysisComplete)
+      handleResponseComplete()
+    } finally {
+      setCurrentStream(null)
+      setCurrentPass(-1)
+      endStream()
     }
-
-    const formattedResponse = results.map((r, i) => `### ${mode.passes[i].name}\n${r}`).join('\n\n---\n\n')
-    addMessage({ role: 'assistant', content: `## ${mode.icon} ${mode.name} Complete\n\n${formattedResponse}`, persona: modeId, model, mode: modeId })
-    setCurrentStream(null)
-    setCurrentPass(-1)
-    endStream()
-    toast.success(TOAST_MESSAGES[`${modeId}Complete`] || TOAST_MESSAGES.analysisComplete)
-    handleResponseComplete()
   }
 
   const handleMatrixMode = async (originalInput, enhancedPrompt, model) => {
@@ -353,6 +367,7 @@ function AppContent() {
           <aside className={`w-80 border-r border-gray-800 p-4 space-y-5 overflow-y-auto ${showSettings ? 'block' : 'hidden lg:block'}`}>
             <PersonaChips selected={selectedPersona} onSelect={setSelectedPersona} disabled={isStreaming || swarmEnabled} />
             <ReasoningToggle selected={reasoningMode} onSelect={handleModeChange} disabled={isStreaming} />
+            <BestPracticesPanel mode={reasoningMode} className="mb-4" />
             <SwarmToggle enabled={swarmEnabled} onToggle={handleSwarmToggle} disabled={isStreaming} />
             <ModelSelector config={modelConfig} onChange={setModelConfig} disabled={isStreaming} />
             {advancedMode && currentPass >= 0 && <PassProgress passes={advancedMode.passes} currentPass={currentPass} passResults={passResults} />}
@@ -365,7 +380,25 @@ function AppContent() {
             <ChatStream messages={history} isStreaming={isStreaming} currentStream={currentStream} branches={branches} />
             <form onSubmit={handleSubmit} className="border-t border-gray-800 p-4">
               <div className="flex gap-3">
-                <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Enter your directive..." disabled={isStreaming} className="flex-1" autoFocus />
+                <div className="relative flex-1 group">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Enter your directive..."
+                    disabled={isStreaming}
+                    className="w-full bg-black/30 border border-gray-700 rounded p-3 pr-28 focus:border-cyan-500 focus:outline-none transition-all"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEnhancer(true)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-cyan-500 hover:text-cyan-300 transition-colors bg-gray-900/80 px-3 py-1.5 rounded border border-cyan-900/50 flex items-center gap-1 opacity-60 group-hover:opacity-100"
+                    title="Enhance Prompt"
+                  >
+                    <span>✨</span> Enhance
+                  </button>
+                </div>
                 <button type="submit" disabled={isStreaming || !input.trim()} className="btn-primary px-6">{isStreaming ? '...' : '▶ SEND'}</button>
               </div>
               <div className="text-xs text-gray-600 mt-2 text-center">
@@ -376,6 +409,17 @@ function AppContent() {
         </div>
         <Footer />
       </div>
+
+      {/* Onboarding & Help */}
+      <FirstRunWizard />
+      <QuickTips />
+      {showEnhancer && (
+        <PromptEnhancer
+          currentInput={input}
+          onEnhance={(imp) => { setInput(imp); toast.success('Prompt Enhanced!'); }}
+          onClose={() => setShowEnhancer(false)}
+        />
+      )}
     </>
   )
 }

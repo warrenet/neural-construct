@@ -2,13 +2,16 @@ import { useState, useMemo } from 'react'
 import {
     TEMPLATE_CATEGORIES,
     getAllTemplates,
-    getRecommendedConfig
+    getRecommendedConfig,
+    extractTemplateVariables,
+    applyTemplateVariables
 } from '../lib/templates'
 
 export default function TemplateSelector({ onSelect, onClose }) {
     const [selectedCategory, setSelectedCategory] = useState('all')
     const [search, setSearch] = useState('')
     const [hoveredTemplate, setHoveredTemplate] = useState(null)
+    const [variableForm, setVariableForm] = useState(null) // {template, variables, values}
 
     const templates = useMemo(() => {
         let all = getAllTemplates()
@@ -29,10 +32,42 @@ export default function TemplateSelector({ onSelect, onClose }) {
         return all
     }, [selectedCategory, search])
 
+    // Check if template has variables, show form if so
     const handleSelect = (template) => {
+        const variables = extractTemplateVariables(template.prompt)
+
+        if (variables.length > 0) {
+            // Show variable form first
+            const initialValues = { INPUT: '' }
+            variables.forEach(v => { initialValues[v.name] = '' })
+            setVariableForm({ template, variables, values: initialValues })
+        } else {
+            // No custom variables, just apply with INPUT placeholder
+            const config = getRecommendedConfig(template)
+            onSelect(template, config)
+            onClose()
+        }
+    }
+
+    // Apply variables and proceed
+    const handleVariableSubmit = () => {
+        if (!variableForm) return
+
+        const { template, values } = variableForm
+        const filledPrompt = applyTemplateVariables(template.prompt, values)
         const config = getRecommendedConfig(template)
-        onSelect(template, config)
+
+        // Create a modified template with filled prompt
+        const filledTemplate = { ...template, prompt: filledPrompt }
+        onSelect(filledTemplate, config)
         onClose()
+    }
+
+    const handleVariableChange = (varName, value) => {
+        setVariableForm(prev => ({
+            ...prev,
+            values: { ...prev.values, [varName]: value }
+        }))
     }
 
     return (
@@ -86,26 +121,99 @@ export default function TemplateSelector({ onSelect, onClose }) {
                         <button
                             onClick={() => setSelectedCategory('all')}
                             className={`whitespace-nowrap px-3 py-1.5 rounded text-xs font-medium transition-all ${selectedCategory === 'all'
-                                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
-                                    : 'bg-gray-800/50 text-gray-400 hover:text-white border border-transparent'
+                                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
+                                : 'bg-gray-800/50 text-gray-400 hover:text-white border border-transparent'
                                 }`}
                         >
-                            All Protocols
+                            All Protocols ({getAllTemplates().length})
                         </button>
-                        {TEMPLATE_CATEGORIES.map(cat => (
-                            <button
-                                key={cat.id}
-                                onClick={() => setSelectedCategory(cat.id)}
-                                className={`whitespace-nowrap px-3 py-1.5 rounded text-xs font-medium transition-all ${selectedCategory === cat.id
+                        {TEMPLATE_CATEGORIES.map(cat => {
+                            const count = getAllTemplates().filter(t => t.category === cat.id).length
+                            return (
+                                <button
+                                    key={cat.id}
+                                    onClick={() => setSelectedCategory(cat.id)}
+                                    className={`whitespace-nowrap px-3 py-1.5 rounded text-xs font-medium transition-all ${selectedCategory === cat.id
                                         ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
                                         : 'bg-gray-800/50 text-gray-400 hover:text-white border border-transparent'
-                                    }`}
-                            >
-                                {cat.name}
-                            </button>
-                        ))}
+                                        }`}
+                                >
+                                    {cat.name} ({count})
+                                </button>
+                            )
+                        })}
                     </div>
                 </div>
+
+                {/* Variable Form Overlay */}
+                {variableForm && (
+                    <div className="absolute inset-0 z-20 bg-gray-900/95 backdrop-blur-xl flex flex-col animate-fade-in">
+                        <div className="p-6 border-b border-gray-800 bg-gray-900 shadow-2xl z-10 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <span className="text-cyan-400">⚡</span> Customize Protocol
+                                </h3>
+                                <p className="text-sm text-gray-400">
+                                    Configure variables for {variableForm.template.name}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setVariableForm(null)}
+                                className="text-gray-500 hover:text-white"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-8 max-w-2xl mx-auto w-full space-y-6">
+                            {/* Standard Input */}
+                            <div className="space-y-2">
+                                <label className="text-sm font-bold text-cyan-400 uppercase tracking-widest">
+                                    Main Input
+                                </label>
+                                <textarea
+                                    value={variableForm.values.INPUT}
+                                    onChange={(e) => handleVariableChange('INPUT', e.target.value)}
+                                    placeholder="Enter the main topic or content..."
+                                    className="w-full bg-black/40 border border-gray-700 rounded p-4 h-32 text-gray-200 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20 transition-all font-mono text-sm leading-relaxed"
+                                    autoFocus
+                                />
+                            </div>
+
+                            {/* Custom Variables */}
+                            {variableForm.variables.map(v => (
+                                <div key={v.name} className="space-y-2">
+                                    <label className="text-sm font-bold text-purple-400 uppercase tracking-widest">
+                                        {v.label}
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={variableForm.values[v.name]}
+                                        onChange={(e) => handleVariableChange(v.name, e.target.value)}
+                                        placeholder={v.placeholder}
+                                        className="w-full bg-black/40 border border-gray-700 rounded p-3 text-gray-200 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20 transition-all font-mono text-sm"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="p-6 border-t border-gray-800 bg-gray-900 flex justify-end gap-3">
+                            <button
+                                onClick={() => setVariableForm(null)}
+                                className="px-6 py-2 rounded text-gray-400 hover:text-white transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleVariableSubmit}
+                                disabled={!variableForm.values.INPUT.trim()}
+                                className="btn-primary px-8 py-2 flex items-center gap-2"
+                            >
+                                <span>🚀</span> Launch Protocol
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {/* Content */}
                 <div className="flex-1 flex overflow-hidden">

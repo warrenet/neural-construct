@@ -346,6 +346,16 @@ TARGET SYSTEM:
 export const SINGLEPASS_TEMPLATES = [
     // Code templates
     {
+        id: 'demo_custom_vars',
+        name: '✨ Demo: Custom Variables',
+        category: 'code',
+        recommendedMode: 'sprint',
+        description: 'Demonstrates the new variable system with custom fields',
+        prompt: `Write a {{complexity}} code example in {{language}} about {{topic}}.
+        
+Please include comments explaining the {{complexity}} parts.`
+    },
+    {
         id: 'sp_function',
         name: '⚡ Quick Function',
         category: 'code',
@@ -956,3 +966,52 @@ export function getRecommendedConfig(template) {
         useSwarm: template.useSwarm || false
     }
 }
+
+/**
+ * Extract all variable placeholders from a template prompt
+ * Returns array of unique variable names (excluding INPUT)
+ */
+export function extractTemplateVariables(prompt) {
+    const regex = /\{\{(\w+)\}\}/g
+    const variables = new Set()
+    let match
+
+    while ((match = regex.exec(prompt)) !== null) {
+        const varName = match[1]
+        if (varName !== 'INPUT') {
+            variables.add(varName)
+        }
+    }
+
+    return Array.from(variables).map(name => ({
+        name,
+        label: name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' '),
+        placeholder: `Enter ${name.toLowerCase().replace(/_/g, ' ')}...`
+    }))
+}
+
+/**
+ * Apply variable values to template prompt
+ * @param {string} prompt - Template prompt with {{VAR}} placeholders
+ * @param {Object} values - Map of variable names to values
+ * @returns {string} Prompt with variables replaced
+ */
+export function applyTemplateVariables(prompt, values) {
+    let result = prompt
+
+    for (const [key, value] of Object.entries(values)) {
+        const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'gi')
+        result = result.replace(regex, value || '')
+    }
+
+    return result
+}
+
+/**
+ * Check if a template has custom variables (beyond INPUT)
+ */
+export function hasCustomVariables(template) {
+    const vars = extractTemplateVariables(template.prompt)
+    return vars.length > 0
+}
+

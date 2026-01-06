@@ -34,7 +34,7 @@ export function useNeuralState() {
 
     const addMessage = useCallback((message) => {
         setHistory(prev => {
-            const updated = [...prev, { ...message, id: Date.now(), timestamp: new Date().toISOString() }]
+            const updated = [...prev, { ...message, id: crypto.randomUUID(), timestamp: new Date().toISOString() }]
             // Keep only last MAX_HISTORY messages
             const trimmed = updated.slice(-MAX_HISTORY)
             saveHistory(trimmed)

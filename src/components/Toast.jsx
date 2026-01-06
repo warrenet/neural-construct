@@ -1,7 +1,5 @@
-import { useState, useMemo, createContext, useContext, useCallback } from 'react'
-
-// Toast Context
-const ToastContext = createContext(null)
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
+import { ToastContext } from '../contexts/ToastContext'
 
 // Toast types with styling
 const TOAST_TYPES = {
@@ -45,23 +43,29 @@ const TOAST_TYPES = {
 // Toast Provider Component
 export function ToastProvider({ children }) {
     const [toasts, setToasts] = useState([])
+    const timers = useRef({})
+
+    const removeToast = useCallback((id) => {
+        // Clear any pending timer for this toast
+        if (timers.current[id]) {
+            clearTimeout(timers.current[id])
+            delete timers.current[id]
+        }
+        setToasts(prev => prev.filter(t => t.id !== id))
+    }, [])
 
     const addToast = useCallback((message, type = 'info', duration = 4000) => {
         const id = Date.now() + Math.random()
         setToasts(prev => [...prev, { id, message, type, duration }])
 
         if (duration > 0) {
-            setTimeout(() => {
-                setToasts(prev => prev.filter(t => t.id !== id))
+            timers.current[id] = setTimeout(() => {
+                removeToast(id)
             }, duration)
         }
 
         return id
-    }, [])
-
-    const removeToast = useCallback((id) => {
-        setToasts(prev => prev.filter(t => t.id !== id))
-    }, [])
+    }, [removeToast])
 
     // Convenience methods - Memoized to prevent infinite loops
     const toast = useMemo(() => ({
@@ -84,21 +88,14 @@ export function ToastProvider({ children }) {
     )
 }
 
-// Hook to use toasts
-export function useToast() {
-    const context = useContext(ToastContext)
-    if (!context) {
-        throw new Error('useToast must be used within a ToastProvider')
-    }
-    return context
-}
-
 // Toast Container
 function ToastContainer({ toasts, onDismiss }) {
     return (
-        <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
+        <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
             {toasts.map((toast) => (
-                <Toast key={toast.id} toast={toast} onDismiss={() => onDismiss(toast.id)} />
+                <div key={toast.id} className="pointer-events-auto">
+                    <Toast toast={toast} onDismiss={() => onDismiss(toast.id)} />
+                </div>
             ))}
         </div>
     )
@@ -108,10 +105,18 @@ function ToastContainer({ toasts, onDismiss }) {
 function Toast({ toast, onDismiss }) {
     const [isExiting, setIsExiting] = useState(false)
     const style = TOAST_TYPES[toast.type] || TOAST_TYPES.info
+    const timeoutRef = useRef(null)
+
+    useEffect(() => {
+        return () => {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current)
+        }
+    }, [])
 
     const handleDismiss = () => {
+        if (isExiting) return
         setIsExiting(true)
-        setTimeout(onDismiss, 200)
+        timeoutRef.current = setTimeout(onDismiss, 200)
     }
 
     return (
@@ -124,6 +129,7 @@ function Toast({ toast, onDismiss }) {
         animate-slide-in
       `}
             style={{ animation: 'slideIn 0.3s ease' }}
+            role="alert"
         >
             <span className={`text-lg ${style.text}`}>{style.icon}</span>
             <div className="flex-1">
@@ -131,22 +137,13 @@ function Toast({ toast, onDismiss }) {
             </div>
             <button
                 onClick={handleDismiss}
-                className="text-gray-500 hover:text-white transition-colors"
+                className="text-gray-500 hover:text-white transition-colors p-1"
+                aria-label="Close"
             >
                 ×
             </button>
         </div>
     )
 }
-
-// Add animation to CSS via style tag
-const styleSheet = document.createElement('style')
-styleSheet.textContent = `
-  @keyframes slideIn {
-    from { opacity: 0; transform: translateX(20px); }
-    to { opacity: 1; transform: translateX(0); }
-  }
-`
-document.head.appendChild(styleSheet)
 
 export default ToastProvider
