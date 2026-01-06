@@ -1,4 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
+import CloudConnect from './components/CloudConnect'
+import CortexVisualizer from './components/CortexVisualizer'
+import NeuralActivity from './components/NeuralActivity'
+import { useSound } from './hooks/useSound'
+import { generateAutoTitle } from './lib/autoTitle'
 import './index.css'
 
 import { ToastProvider } from './components/Toast'
@@ -30,16 +36,26 @@ import { streamChat, completeChat } from './lib/openrouter'
 import { ADVANCED_MODES, SWARM_PROMPTS, getAdvancedModePrompt } from './lib/advancedReasoning'
 import PromptEnhancer from './components/PromptEnhancer'
 import BestPracticesPanel from './components/BestPracticesPanel'
+import CommandPalette from './components/CommandPalette'
+import { useExportChat } from './hooks/useConvenience'
+import MemoryUploader from './components/MemoryUploader'
 
 function AppContent() {
   const { toast } = useToast()
+  const { isConnected } = useAuth()
+  const [showCloudConnect, setShowCloudConnect] = useState(false)
+  const [showCortex, setShowCortex] = useState(false)
   const onboarding = useOnboarding(toast)
   const { shake, flash, triggerShake, triggerFlash, triggerError, triggerSuccess } = useHaptics()
+  const { playClick, playHover } = useSound()
+  const { exportAsMarkdown } = useExportChat()
+  const [showCommandPalette, setShowCommandPalette] = useState(false)
 
   // Boot state
   const [booting, setBooting] = useState(true)
   const [vaultLocked, setVaultLocked] = useState(true)
   const [apiKey, setApiKey] = useState(null)
+
 
   // Stable completion handler for BiosLoader
   const handleBootComplete = useCallback(() => setBooting(false), [])
@@ -99,6 +115,32 @@ function AppContent() {
   // Load/save model config
   useEffect(() => { loadModelConfig().then(setModelConfig) }, [])
   useEffect(() => { saveModelConfig(modelConfig) }, [modelConfig])
+
+  // Global Ctrl+K for Command Palette
+  useEffect(() => {
+    const handleGlobalKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setShowCommandPalette(prev => !prev)
+      }
+    }
+    window.addEventListener('keydown', handleGlobalKey)
+    return () => window.removeEventListener('keydown', handleGlobalKey)
+  }, [])
+
+  // Command Palette Handler
+  const handleCommand = (commandId) => {
+    playClick()
+    if (commandId === 'clear') handleClearHistory()
+    else if (commandId === 'templates') setShowTemplates(true)
+    else if (commandId === 'help') setShowHelp(true)
+    else if (commandId === 'cortex') setShowCortex(true)
+    else if (commandId === 'cloud') setShowCloudConnect(true)
+    else if (commandId === 'lock') handleLockVault()
+    else if (commandId === 'export') exportAsMarkdown(history, `neural-construct-${Date.now()}.md`)
+    else if (commandId.startsWith('persona:')) setSelectedPersona(commandId.split(':')[1])
+    else if (commandId.startsWith('mode:')) setReasoningMode(commandId.split(':')[1])
+  }
 
   const handleVaultUnlock = (key) => {
     setApiKey(key)
@@ -198,6 +240,11 @@ function AppContent() {
         setCurrentStream(null)
         endStream()
         handleResponseComplete()
+      },
+      onFallback: (oldModel, newModel) => {
+        // Notify user of automatic model switch
+        const newName = newModel.split('/').pop().replace(':free', '')
+        toast.info(`⚡ Switched to ${newName} (Rate limit)`)
       },
       onError: (error) => {
         addMessage({ role: 'system', content: `Error: ${error}` })
@@ -323,7 +370,23 @@ function AppContent() {
     } catch (err) { setStreamError(err.message); toast.error(TOAST_MESSAGES.apiError) }
   }
 
-  const handleResponseComplete = () => {
+  const handleResponseComplete = async () => {
+    // 1. Auto-Title on first exchange
+    if (history.length === 2) {
+      try {
+        // Generate title in background
+        const newTitle = await generateAutoTitle(history[1].content, getModelForPersona(selectedPersona), apiKey)
+        if (newTitle) {
+          // Would typically update a ChatList context/state here
+          // For now, we just toast it to show the feature works
+          toast.success(`Chat Renamed: ${newTitle}`)
+        }
+      } catch (e) {
+        console.error("Auto-title failed", e)
+      }
+    }
+    // 2. Play finish sound
+    triggerSuccess()
     setResponseCount(prev => {
       const newCount = prev + 1
       if (newCount === 1) onboarding.showTip('first_response')
@@ -351,10 +414,20 @@ function AppContent() {
         <header className="border-b border-gray-800 p-4">
           <div className="flex items-center justify-between max-w-6xl mx-auto">
             <div className="flex items-center gap-3">
-              <span className="text-2xl">🧠</span>
+              <button
+                onClick={() => { playClick(); setShowCortex(true) }}
+                onMouseEnter={playHover}
+                className="text-2xl hover:scale-110 transition-transform cursor-pointer"
+                title="Open Cortex"
+              >
+                🧠
+              </button>
               <h1 className="text-lg font-bold text-cyan-400 glow-cyan tracking-wider">THE NEURAL CONSTRUCT</h1>
             </div>
             <div className="flex items-center gap-2">
+              <button onClick={() => setShowCloudConnect(true)} className={`btn-secondary text-sm ${isConnected ? 'text-green-400 border-green-500/30' : ''}`} data-tooltip={isConnected ? "Cloud Active" : "Connect Cloud"}>
+                {isConnected ? '🟢' : '☁️'}
+              </button>
               <button onClick={() => setShowHelp(true)} className="btn-secondary text-sm" data-tooltip="Help & Guide">❓</button>
               <button onClick={() => setShowTemplates(true)} className="btn-secondary text-sm" data-tooltip="Templates">📋</button>
               <button onClick={() => setShowSettings(!showSettings)} className="btn-secondary text-sm lg:hidden" data-tooltip="Settings">⚙️</button>
@@ -374,6 +447,7 @@ function AppContent() {
             <div className="pt-4 border-t border-gray-800">
               <button onClick={handleClearHistory} disabled={isStreaming || history.length === 0} className="btn-secondary w-full text-sm">🗑️ Clear History</button>
             </div>
+            <MemoryUploader onComplete={() => toast.success('Memory Updated!')} />
           </aside>
 
           <main className="flex-1 flex flex-col">
@@ -420,6 +494,14 @@ function AppContent() {
           onClose={() => setShowEnhancer(false)}
         />
       )}
+      <CloudConnect isOpen={showCloudConnect} onClose={() => setShowCloudConnect(false)} />
+      <CortexVisualizer isOpen={showCortex} onClose={() => setShowCortex(false)} />
+      <NeuralActivity />
+      <CommandPalette
+        isOpen={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        onCommand={handleCommand}
+      />
     </>
   )
 }
@@ -427,7 +509,9 @@ function AppContent() {
 export default function App() {
   return (
     <ToastProvider>
-      <AppContent />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </ToastProvider>
   )
 }

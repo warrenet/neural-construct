@@ -1,3 +1,5 @@
+import { FREE_MODELS } from './models'
+
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 const DEFAULT_TIMEOUT = 60000 // 60 seconds
 
@@ -18,7 +20,28 @@ function createTimeoutController(timeoutMs = DEFAULT_TIMEOUT) {
     return { controller, timeoutId }
 }
 
-export async function streamChat({ apiKey, model, messages, onChunk, onComplete, onError, signal, timeout = DEFAULT_TIMEOUT }) {
+// Check if error is rate-limit related
+function isRateLimitError(error) {
+    const msg = error?.message?.toLowerCase() || ''
+    return msg.includes('429') ||
+        msg.includes('rate limit') ||
+        msg.includes('too many requests') ||
+        msg.includes('no endpoints found')
+}
+
+// Get next fallback model
+function getNextFallbackModel(currentModel) {
+    const currentIndex = FREE_MODELS.findIndex(m => m.id === currentModel)
+    const nextIndex = (currentIndex + 1) % FREE_MODELS.length
+    // Avoid infinite loop - if we've tried all models, return null
+    if (nextIndex === 0 && currentIndex !== -1) return null
+    return FREE_MODELS[nextIndex]?.id
+}
+
+/**
+ * Enhanced streamChat with automatic model fallback
+ */
+export async function streamChat({ apiKey, model, messages, onChunk, onComplete, onError, onFallback, signal, timeout = DEFAULT_TIMEOUT, _attemptedModels = [] }) {
     const { controller, timeoutId } = createTimeoutController(timeout)
 
     // Allow external signal to also abort
@@ -83,6 +106,33 @@ export async function streamChat({ apiKey, model, messages, onChunk, onComplete,
     } catch (err) {
         clearTimeout(timeoutId)
 
+        // FALLBACK LOGIC: Try next model on rate limit
+        if (isRateLimitError(err) && _attemptedModels.length < FREE_MODELS.length) {
+            const nextModel = getNextFallbackModel(model)
+            if (nextModel && !_attemptedModels.includes(nextModel)) {
+                console.warn(`⚡ Rate limited on ${model}, falling back to ${nextModel}`)
+
+                // Notify UI of fallback (optional callback)
+                if (onFallback) {
+                    onFallback(model, nextModel)
+                }
+
+                // Retry with new model
+                return streamChat({
+                    apiKey,
+                    model: nextModel,
+                    messages,
+                    onChunk,
+                    onComplete,
+                    onError,
+                    onFallback,
+                    signal,
+                    timeout,
+                    _attemptedModels: [..._attemptedModels, model]
+                })
+            }
+        }
+
         if (err.name === 'AbortError') {
             console.error('Stream request aborted or timed out')
             onError('Request timed out. Please try again.')
@@ -93,7 +143,10 @@ export async function streamChat({ apiKey, model, messages, onChunk, onComplete,
     }
 }
 
-export async function completeChat({ apiKey, model, messages, signal, timeout = DEFAULT_TIMEOUT }) {
+/**
+ * Enhanced completeChat with automatic model fallback
+ */
+export async function completeChat({ apiKey, model, messages, signal, timeout = DEFAULT_TIMEOUT, _attemptedModels = [] }) {
     const { controller, timeoutId } = createTimeoutController(timeout)
 
     // Allow external signal to also abort
@@ -124,6 +177,23 @@ export async function completeChat({ apiKey, model, messages, signal, timeout = 
         return data.choices?.[0]?.message?.content || ''
     } catch (err) {
         clearTimeout(timeoutId)
+
+        // FALLBACK LOGIC: Try next model on rate limit
+        if (isRateLimitError(err) && _attemptedModels.length < FREE_MODELS.length) {
+            const nextModel = getNextFallbackModel(model)
+            if (nextModel && !_attemptedModels.includes(nextModel)) {
+                console.warn(`⚡ Rate limited on ${model}, falling back to ${nextModel}`)
+
+                return completeChat({
+                    apiKey,
+                    model: nextModel,
+                    messages,
+                    signal,
+                    timeout,
+                    _attemptedModels: [..._attemptedModels, model]
+                })
+            }
+        }
 
         if (err.name === 'AbortError') {
             console.error('Completion request aborted or timed out')

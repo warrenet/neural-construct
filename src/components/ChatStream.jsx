@@ -1,5 +1,6 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { LoadingDots } from './GlitchText'
+import MatrixText from './MatrixText'
 
 export default function ChatStream({ messages, isStreaming, currentStream, branches }) {
     const endRef = useRef(null)
@@ -22,8 +23,7 @@ export default function ChatStream({ messages, isStreaming, currentStream, branc
                         {currentStream.persona} responding...
                     </div>
                     <div className="text-gray-200 whitespace-pre-wrap font-mono text-sm">
-                        {currentStream.content}
-                        <span className="typewriter-cursor"></span>
+                        <MatrixText text={currentStream.content} active={true} />
                     </div>
                 </div>
             )}
@@ -65,6 +65,13 @@ export default function ChatStream({ messages, isStreaming, currentStream, branc
 function MessageBubble({ message }) {
     const isUser = message.role === 'user'
     const isSystem = message.role === 'system'
+    const [copied, setCopied] = useState(false)
+
+    const handleCopy = async () => {
+        await navigator.clipboard.writeText(message.content)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+    }
 
     if (isSystem) {
         return (
@@ -78,7 +85,7 @@ function MessageBubble({ message }) {
     const { thinking, answer } = parseThinkingTags(message.content)
 
     return (
-        <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+        <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} group`}>
             <div className={`max-w-[85%] ${isUser ? 'order-2' : ''}`}>
                 {!isUser && message.persona && (
                     <div className={`text-xs mb-1 ${getPersonaColor(message.persona)}`}>
@@ -96,13 +103,24 @@ function MessageBubble({ message }) {
                     </div>
                 )}
 
-                <div className={`panel p-4 ${isUser
+                <div className={`panel p-4 relative ${isUser
                     ? 'bg-cyan-400/10 border-cyan-400/30'
                     : 'bg-gray-800/50 border-gray-700'
                     }`}>
                     <div className="text-gray-200 whitespace-pre-wrap font-mono text-sm">
                         {answer || message.content}
                     </div>
+
+                    {/* Copy Button - only for AI responses */}
+                    {!isUser && (
+                        <button
+                            onClick={handleCopy}
+                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-xs px-2 py-1 rounded bg-gray-700/50 hover:bg-gray-600 text-gray-400 hover:text-white"
+                            title="Copy response"
+                        >
+                            {copied ? '✓ Copied' : '📋 Copy'}
+                        </button>
+                    )}
                 </div>
 
                 {message.timestamp && (

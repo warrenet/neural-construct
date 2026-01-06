@@ -5,12 +5,11 @@
 
 // Free models always available
 export const FREE_MODELS = [
-    { id: 'meta-llama/llama-4-maverick:free', name: 'Llama 4 Maverick', provider: 'Meta', tier: 'free' },
-    { id: 'meta-llama/llama-4-scout:free', name: 'Llama 4 Scout', provider: 'Meta', tier: 'free' },
-    { id: 'mistralai/mistral-small-3.1-24b-instruct:free', name: 'Mistral Small 3.1', provider: 'Mistral', tier: 'free' },
-    { id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B', provider: 'Google', tier: 'free' },
-    { id: 'deepseek/deepseek-chat-v3-0324:free', name: 'DeepSeek V3', provider: 'DeepSeek', tier: 'free' },
-    { id: 'qwen/qwen3-32b:free', name: 'Qwen 3 32B', provider: 'Qwen', tier: 'free' }
+    { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash Exp', provider: 'Google', tier: 'free' },
+    { id: 'meta-llama/llama-3.2-11b-vision-instruct:free', name: 'Llama 3.2 11B', provider: 'Meta', tier: 'free' },
+    { id: 'huggingfaceh4/zephyr-7b-beta:free', name: 'Zephyr 7B Beta', provider: 'HuggingFace', tier: 'free' },
+    { id: 'mistralai/mistral-7b-instruct:free', name: 'Mistral 7B', provider: 'Mistral', tier: 'free' },
+    { id: 'microsoft/phi-3-mini-128k-instruct:free', name: 'Phi-3 Mini', provider: 'Microsoft', tier: 'free' },
 ]
 
 // Curated paid tiers
