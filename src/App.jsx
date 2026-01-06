@@ -73,9 +73,13 @@ function AppContent() {
         setApiKey(storedKey)
         setVaultLocked(false)
       } else if (envKey) {
+        // Validate key format before using
+        if (!envKey.startsWith('sk-or-') || envKey.length < 50) {
+          toast.error('⚠️ Invalid API key in .env file. Check format and restart server.')
+          return
+        }
         setApiKey(envKey)
         setVaultLocked(false)
-        // Only show toast if this is the first load
         toast.success('Environment Key Loaded')
       }
     }
